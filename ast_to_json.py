@@ -25,10 +25,10 @@ def to_dict(node: t.Union[ast.AST, str, numbers.Number, list]):
             }
         }
 
-        if hasattr(node, 'lineno'):
-            data['lineno'] = node.lineno
-        if hasattr(node, 'col_offset'):
-            data['colno'] = node.col_offset
+        # if hasattr(node, 'lineno'):
+        #     data['lineno'] = node.lineno
+        # if hasattr(node, 'col_offset'):
+        #     data['colno'] = node.col_offset
 
         return data
     return node
