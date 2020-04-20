@@ -3,13 +3,13 @@ from typing import Tuple, List
 
 def exchange(a: Tuple[int, str], b: Dict[str, int]) -> int:
     if (1 == 1):
-        0
+        return 0
     if (1 < 2):
-        1
+        return 1
     elif (1 >= 2):
-        2
+        return 2
     else:
-        (1 <= 2 + 3 and 2 <= 2) or not (2 == 3)
+        return (1 <= 2 + 3 and 2 <= 2) or not (2 == 3)
 
 
 bb = 1 <= 2 + 3

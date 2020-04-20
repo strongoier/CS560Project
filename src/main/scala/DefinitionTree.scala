@@ -182,6 +182,8 @@ class DefinitionTree(var jsonTree: ujson.Value){
         val thenp = Term.Block(stats = o.obj("body").arr.map(item => translateExpr(item)).toList)
         val orelse = if (!o.obj("orelse").arr.isEmpty) Term.Block(stats = o.obj("orelse").arr.map(item => translateExpr(item)).toList) else Lit.Unit()
         Term.If(cond=cond,thenp=thenp,elsep = orelse)
+      case ujson.Str("Return") => 
+        translateExpr(o.obj("value"))
       case _ => 
         println("translateExpr")
         println(o)
