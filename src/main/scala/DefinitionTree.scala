@@ -19,7 +19,7 @@ class DefinitionTree(var jsonTree: ujson.Value){
             tparams = Nil,
             name= Term.Name(o.obj("name").str),
             paramss= translateArguments(o.obj("args")),
-            body= translateBodyItem(o.obj("body"))
+            body= Term.Block(stats =o.obj("body").arr.map(item => translateExpr(item)).toList)
         )
         case _ => 
             println("The Python file must only contain functions")
@@ -152,7 +152,10 @@ class DefinitionTree(var jsonTree: ujson.Value){
 //   }
 
   def translateExpr(v: ujson.Value): Term = v match {
+    case a: ujson.Arr => translateExpr(a.arr.last)
     case o: ujson.Obj => o.obj("class") match {
+      case ujson.Str("FunctionDef") =>  throw new Exception("Nested function definitions are not allowed")
+      case ujson.Str("Expr") => translateExpr(o.obj("value"))
       case ujson.Str("BinOp") =>
         val left = translateExpr(o.obj("left"))
         val op = translateOp(o.obj("op"))
@@ -169,7 +172,16 @@ class DefinitionTree(var jsonTree: ujson.Value){
         Term.ApplyUnary(op=op,arg=operand)
       case ujson.Str("Num") =>
         translateNum(o.obj("n"))
-      case ujson.Str("Compare") => translateCompare(o)
+      case ujson.Str("Compare") => 
+        val left = translateExpr(o.obj("left"))
+        val op = translateOp(o.obj("ops").arr.last)
+        val right = (o.obj("comparators").arr.map(comp => translateExpr(comp))).toList 
+        Term.ApplyInfix(lhs = left,op=op,targs=Nil,args=right)
+      case ujson.Str("If") => 
+        val cond = translateExpr(o.obj("test"))
+        val thenp = Term.Block(stats = o.obj("body").arr.map(item => translateExpr(item)).toList)
+        val orelse = if (!o.obj("orelse").arr.isEmpty) Term.Block(stats = o.obj("orelse").arr.map(item => translateExpr(item)).toList) else Lit.Unit()
+        Term.If(cond=cond,thenp=thenp,elsep = orelse)
       case _ => 
         println("translateExpr")
         println(o)
@@ -181,35 +193,24 @@ class DefinitionTree(var jsonTree: ujson.Value){
       ???
   }
 
-  def translateCompare(v: ujson.Value): Term = v match{
-      case o: ujson.Obj => o.obj("class") match{
-          case ujson.Str("Compare") =>  
-            val left = translateExpr(o.obj("left"))
-            val op = translateOp(o.obj("ops").arr.last)
-            val right = (o.obj("comparators").arr.map(comp => translateExpr(comp))).toList 
-            Term.ApplyInfix(lhs = left,op=op,targs=Nil,args=right)
-          case _ => ???
-      }
-      case _ => ???
-  }
 
-  def translateBodyItem(v: ujson.Value): Term = v match {
-    case a: ujson.Arr => translateBodyItem(a.arr.last)
-    case o: ujson.Obj => o.obj("class") match {
-      case ujson.Str("FunctionDef") =>  throw new Exception("Nested function definitions are not allowed")
-      case ujson.Str("Expr") => translateExpr(o.obj("value"))
-      case ujson.Str("Compare") => translateCompare(o)
-      //case ujson.Str("Assign") => translateAssignment()
-      //case ujson.Str("Call") => translateMethodCall(o)
-      case _ => 
-        println("translateBodyItemInner")
-        println(o)
-        ???
-    }
-    case _ => 
-      println("translateBodyItemOuter")
-      println(v)
-      ???
-  }
+//   def translateBodyItem(v: ujson.Value): Term = v match {
+//     case a: ujson.Arr => translateBodyItem(a.arr.last)
+//     case o: ujson.Obj => o.obj("class") match {
+//       case ujson.Str("FunctionDef") =>  throw new Exception("Nested function definitions are not allowed")
+//       case ujson.Str("Expr") => translateExpr(o.obj("value"))
+//       case ujson.Str("Compare") => translateCompare(o)
+//       //case ujson.Str("Assign") => translateAssignment()
+//       //case ujson.Str("Call") => translateMethodCall(o)
+//       case _ => 
+//         println("translateBodyItemInner")
+//         println(o)
+//         ???
+//     }
+//     case _ => 
+//       println("translateBodyItemOuter")
+//       println(v)
+//       ???
+//   }
 
 }

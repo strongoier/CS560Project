@@ -2,7 +2,14 @@ from typing import Tuple, List
 
 
 def exchange(a: Tuple[int, str], b: Dict[str, int]) -> int:
-    (1 <= 2 + 3 and 2 <= 2) or not (2 == 3)
+    if (1 == 1):
+        0
+    if (1 < 2):
+        1
+    elif (1 >= 2):
+        2
+    else:
+        (1 <= 2 + 3 and 2 <= 2) or not (2 == 3)
 
 
 bb = 1 <= 2 + 3
