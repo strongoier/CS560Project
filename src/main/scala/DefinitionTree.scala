@@ -184,7 +184,7 @@ class DefinitionTree(var jsonTree: ujson.Value){
         Term.If(cond=cond,thenp=thenp,elsep = orelse)
       case ujson.Str("Return") => 
         translateExpr(o.obj("value"))
-      case ujson.Str("Name") => Term.Name(o.obj("id").str)
+      case ujson.Str("Name") => if (o.obj("id").str == "_") Term.Placeholder() else Term.Name(o.obj("id").str)
       case ujson.Str("Call") =>
         o.obj("func").obj("id") match {
             case ujson.Str("len") =>
@@ -203,6 +203,33 @@ class DefinitionTree(var jsonTree: ujson.Value){
         val enums = List(Enumerator.Generator(pat=pat,rhs=translateExpr(o.obj("iter"))))
         val body = Term.Block(stats=o.obj("body").arr.map(item => translateExpr(item)).toList)
         Term.For(enums=enums,body=body)
+      case ujson.Str("Index") => translateExpr(o.obj("value"))
+      case ujson.Str("Subscript") => 
+        val args = List(translateExpr(o.obj("slice")))
+        val fun = translateExpr(o.obj("value")).asInstanceOf[Term.Name]
+        Term.Apply(fun=fun,args=args)
+      case ujson.Str("ListComp") => o.obj("elt").obj("class") match {       
+        case ujson.Str("Name") => 
+            //Not map
+            translateExpr(o.obj("generators").arr.last)
+        case ujson.Str("Call") => 
+            //Map method
+            val map = Term.Select(qual=translateExpr(o.obj("generators").arr.last),name=Term.Name("map"))
+            val args=List(Term.Name(o.obj("elt").obj("func").obj("id").str))
+            Term.Apply(fun=map,args=args)
+        case _ => throw new Exception("This list comprehension is not supported. Try using a for loop")
+        }
+      case ujson.Str("comprehension") => 
+        if (o.obj("ifs").arr.isEmpty){
+            // No filter
+            translateExpr(o.obj("iter"))
+        }else{
+            //Filter
+            val filter = Term.Select(qual=translateExpr(o.obj("iter")),name=Term.Name("filter"))
+            val args = o.obj("ifs").arr.map(translateExpr).toList
+            Term.Apply(fun=filter,args=List(andArguments(args)))
+        }
+
       case _ => 
         println("translateExpr")
         println(o)
@@ -212,6 +239,16 @@ class DefinitionTree(var jsonTree: ujson.Value){
       println("translateExpr")
       //println(o)
       ???
+  }
+
+  def andArguments(args: List[Term]): Term = {
+      if (args.length == 1){
+        args(0)
+      }else{
+        val lhs = args(0)
+        Term.ApplyInfix(lhs=lhs,op=Term.Name("&&"),args=List(andArguments(args.drop(1))),targs=Nil)
+      }
+      
   }
 
 
