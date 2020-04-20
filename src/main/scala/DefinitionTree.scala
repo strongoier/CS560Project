@@ -4,7 +4,7 @@ import scala.meta._
 
 class DefinitionTree(var jsonTree: ujson.Value){
     assert(jsonTree.obj("class") == ujson.Str("FunctionDef"),"Class DefinitionTree must be called on Python definition")
-    var functionName: String = jsonTree.obj("name").str
+    val functionName: String = jsonTree.obj("name").str
     println(s"Function Name: $functionName")
     var variablesInScope: Set[Term.Name] = Set[Term.Name]()
 
@@ -186,20 +186,23 @@ class DefinitionTree(var jsonTree: ujson.Value){
         translateExpr(o.obj("value"))
       case ujson.Str("Name") => Term.Name(o.obj("id").str)
       case ujson.Str("Call") =>
-        if (o.obj("func").obj("id").str == this.functionName){
-            //recursive call
-            val args = o.obj("args").arr.map(arg => translateExpr(arg)).toList
-            Term.Apply(fun = Term.Name(this.functionName),args = args)
-        }else{
-            //Method call
-            o.obj("func").obj("id") match {
-                case ujson.Str("len") => 
-                    val qual = translateExpr(o.obj("args").arr.last)
-                    Term.Select(qual = qual, name=Term.Name("length"))
-                case _ => 
-                    throw new Exception("Not a recursive call or a supported method call")
-            }
+        o.obj("func").obj("id") match {
+            case ujson.Str("len") =>
+                // method call
+                val qual = translateExpr(o.obj("args").arr.last)
+                Term.Select(qual = qual, name=Term.Name("length"))
+            case _ => 
+                //If not a covered scala method, will fall back on function call
+                val args = o.obj("args").arr.map(arg => translateExpr(arg)).toList
+                Term.Apply(fun = Term.Name(o.obj("func").obj("id").str),args = args)
         }
+      case ujson.Str("List") => 
+        Term.Apply(fun=Term.Name("List"),args = o.obj("elts").arr.map(item => translateExpr(item)).toList)
+      case ujson.Str("For") =>
+        val pat = Pat.Var(name=translateExpr(o.obj("target")).asInstanceOf[Term.Name])
+        val enums = List(Enumerator.Generator(pat=pat,rhs=translateExpr(o.obj("iter"))))
+        val body = Term.Block(stats=o.obj("body").arr.map(item => translateExpr(item)).toList)
+        Term.For(enums=enums,body=body)
       case _ => 
         println("translateExpr")
         println(o)
