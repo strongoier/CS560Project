@@ -184,6 +184,22 @@ class DefinitionTree(var jsonTree: ujson.Value){
         Term.If(cond=cond,thenp=thenp,elsep = orelse)
       case ujson.Str("Return") => 
         translateExpr(o.obj("value"))
+      case ujson.Str("Name") => Term.Name(o.obj("id").str)
+      case ujson.Str("Call") =>
+        if (o.obj("func").obj("id").str == this.functionName){
+            //recursive call
+            val args = o.obj("args").arr.map(arg => translateExpr(arg)).toList
+            Term.Apply(fun = Term.Name(this.functionName),args = args)
+        }else{
+            //Method call
+            o.obj("func").obj("id") match {
+                case ujson.Str("len") => 
+                    val qual = translateExpr(o.obj("args").arr.last)
+                    Term.Select(qual = qual, name=Term.Name("length"))
+                case _ => 
+                    throw new Exception("Not a recursive call or a supported method call")
+            }
+        }
       case _ => 
         println("translateExpr")
         println(o)

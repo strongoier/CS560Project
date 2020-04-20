@@ -1,11 +1,11 @@
 from typing import Tuple, List
 
 
-def exchange(a: Tuple[int, str], b: Dict[str, int]) -> int:
+def exchange(a: int, b: list) -> int:
     if (1 == 1):
-        return 0
+        return len(b)
     if (1 < 2):
-        return 1
+        return exchange(a, b)
     elif (1 >= 2):
         return 2
     else:
