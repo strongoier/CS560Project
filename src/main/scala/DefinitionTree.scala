@@ -3,11 +3,10 @@ package definitionTree
 import scala.meta._
 
 class DefinitionTree(var jsonTree: ujson.Value){
-    println(jsonTree)
     assert(jsonTree.obj("class") == ujson.Str("FunctionDef"),"Class DefinitionTree must be called on Python definition")
     var functionName: String = jsonTree.obj("name").str
-    println(functionName)
-    var variablesInScope: Set[Stat] = Set[Stat]()
+    println(s"Function Name: $functionName")
+    var variablesInScope: Set[Term.Name] = Set[Term.Name]()
 
     def translateFunction: Defn.Def = jsonTree match {
         case a: ujson.Arr => 
@@ -93,6 +92,15 @@ class DefinitionTree(var jsonTree: ujson.Value){
       case ujson.Str("Mult") => Term.Name("*")
       case ujson.Str("FloorDiv") => Term.Name("/")
       case ujson.Str("Mod") => Term.Name("%")
+      case ujson.Str("LtE") => Term.Name("<=")
+      case ujson.Str("Lt") => Term.Name("<")
+      case ujson.Str("Eq") => Term.Name("==")
+      case ujson.Str("NotEq") => Term.Name("!=")
+      case ujson.Str("Gt") => Term.Name(">")
+      case ujson.Str("GtE") => Term.Name(">=")
+      case ujson.Str("And") => Term.Name("&&")
+      case ujson.Str("Or") => Term.Name("||")
+      case ujson.Str("Not") => Term.Name("!")
       case _ => 
         println("translateOp")
         ???
@@ -150,42 +158,47 @@ class DefinitionTree(var jsonTree: ujson.Value){
         val op = translateOp(o.obj("op"))
         val right = translateExpr(o.obj("right"))
         Term.ApplyInfix(lhs = left, op = op, targs = Nil, args = List(right))
+      case ujson.Str("BoolOp") =>
+        val left = translateExpr(o.obj("values").arr(0))
+        val op = translateOp(o.obj("op"))
+        val right = translateExpr(o.obj("values").arr.last)
+        Term.ApplyInfix(lhs = left, op = op, targs = Nil, args = List(right))
+      case ujson.Str("UnaryOp") =>
+        val op = translateOp(o.obj("op"))
+        val operand = translateExpr(o.obj("operand"))
+        Term.ApplyUnary(op=op,arg=operand)
       case ujson.Str("Num") =>
         translateNum(o.obj("n"))
+      case ujson.Str("Compare") => translateCompare(o)
       case _ => 
         println("translateExpr")
+        println(o)
         ???
     }
     case _ => 
       println("translateExpr")
+      //println(o)
       ???
   }
 
-  // def translateTerm(v: ujson.Value): Term = v match {
-  //   case a: ujson.Arr => translateTerm(a.arr.last) // incorrect
-  //   case o: ujson.Obj => o.obj("class") match {
-  //     case ujson.Str("Module") => translateTerm(o.obj("body"))
-  //     case ujson.Str("Expr") => translateExpr(o.obj("value"))
-  //     case _ => 
-  //       println("translateTerm")
-  //       ???
-  //   }
-  //   case _ => 
-  //     println("translateTerm")
-  //     ???
-  // }
-
-//   def translateMethodCall(v: ujson.Value): Stat = v match {
-//     case o: ujson.Obj => o.obj("class") match {
-//       case ujson.Str("Call") => 
-//     }
-//   }
+  def translateCompare(v: ujson.Value): Term = v match{
+      case o: ujson.Obj => o.obj("class") match{
+          case ujson.Str("Compare") =>  
+            val left = translateExpr(o.obj("left"))
+            val op = translateOp(o.obj("ops").arr.last)
+            val right = (o.obj("comparators").arr.map(comp => translateExpr(comp))).toList 
+            Term.ApplyInfix(lhs = left,op=op,targs=Nil,args=right)
+          case _ => ???
+      }
+      case _ => ???
+  }
 
   def translateBodyItem(v: ujson.Value): Term = v match {
     case a: ujson.Arr => translateBodyItem(a.arr.last)
     case o: ujson.Obj => o.obj("class") match {
       case ujson.Str("FunctionDef") =>  throw new Exception("Nested function definitions are not allowed")
       case ujson.Str("Expr") => translateExpr(o.obj("value"))
+      case ujson.Str("Compare") => translateCompare(o)
       //case ujson.Str("Assign") => translateAssignment()
       //case ujson.Str("Call") => translateMethodCall(o)
       case _ => 
