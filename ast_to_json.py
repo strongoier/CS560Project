@@ -64,17 +64,17 @@ def from_code(input: 'text', to: 'filename'):
 
 def msg(name=None):
     return '''ast_to_json.py
-         [-h] [--fromFile | -f inputFile outputFile]
+         [-h] [--fromFile | -f inputFile]
         '''
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Create AST from Python file or text', usage=msg())
-    parser.add_argument('--fromFile', '-f', nargs=2, type=str,
-                        help='Takes in input and output files')
+    parser.add_argument('--fromFile', '-f', nargs=1, type=str,
+                        help='Takes in input file')
 
     args = parser.parse_args()
-    fromFile = args.fromFile
-    if len(fromFile) == 2:
-        from_file(fromFile[0], fromFile[1])
+    if (len(args.fromFile) == 1):
+        fromFile = args.fromFile[0]
+        from_file(fromFile, fromFile.replace(".py", ".json"))

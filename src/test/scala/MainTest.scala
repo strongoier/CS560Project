@@ -11,7 +11,7 @@ class MainTest extends FunSuite {
   val toolbox = currentMirror.mkToolBox()
 
   def testCodeAndOutput(id: String, expectedCode: String, expectedOutput: Any) = {
-    val _ = Seq("python", "ast_to_json.py", "-f", s"test/$id.py", s"test/$id.json").!!
+    val _ = Seq("python", "ast_to_json.py", "-f", s"test/$id.py").!!
     Using(Source.fromFile(s"test/$id.json"))(_.mkString) match {
       case Success(jsonString) =>
         val code = Main.translateSource(ujson.read(jsonString))(mutable.Set[String]()).toString
@@ -53,5 +53,16 @@ class MainTest extends FunSuite {
                              |  }
                              |}
                              |test(0, List(1, 2)) * 100 + test(1, List(1, 2)) * 10 + test(2, List(1, 2))""".stripMargin, 321)
+  }
+  test("5"){
+    testCodeAndOutput("5","""var a = List(10, 15)
+                            |var c = List(20, -10)
+                            |var b = List(0, 1)
+                            |var tot = b.filter(_ > 0).map(a)
+                            |var tot2 = b.filter(c(_) > 0).map(a)
+                            |var tot3 = b.filter(_ > 0)
+                            |var tot4 = b.map(a)
+                            |var tot5 = b.filter(c(_) > 0).filter(_ > 0).map(a)
+                            |tot.sum + tot2.sum + tot3.sum + tot4.sum + tot5.sum""".stripMargin,51)
   }
 }

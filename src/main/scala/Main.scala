@@ -75,13 +75,16 @@ object Main extends App {
         val left = translateExpr(o.obj("left"))
         val op = translateOp(o.obj("ops").arr.last)
         val right = translateExpr(o.obj("comparators").arr.last)
-        Term.ApplyInfix(lhs = left, op = op, targs = Nil, args = List(right))
+        Term.ApplyInfix(lhs = left, op = op, targs = Nil, args = List(right))        
       case ujson.Str("Name") => if (o.obj("id").str == "_") Term.Placeholder() else Term.Name(o.obj("id").str)
       case ujson.Str("Call") => o.obj("func").obj("id") match {
         case ujson.Str("len") =>
           // method call
           val qual = translateExpr(o.obj("args").arr.last)
           Term.Select(qual = qual, name = Term.Name("length"))
+        case ujson.Str("sum") =>
+          val qual = translateExpr(o.obj("args").arr.last)
+          Term.Select(qual = qual, name = Term.Name("sum"))
         case _ =>
           // If not a covered scala method, will fall back on function call
           val args = o.obj("args").arr.map(translateExpr).toList
@@ -94,16 +97,20 @@ object Main extends App {
         val args = List(translateExpr(o.obj("slice")))
         val fun = translateExpr(o.obj("value")).asInstanceOf[Term.Name]
         Term.Apply(fun = fun, args = args)
-      /*case ujson.Str("ListComp") => o.obj("elt").obj("class") match {
-        case ujson.Str("Name") =>
-          //Not map
-          translateExpr(o.obj("generators").arr.last)
+      case ujson.Str("ListComp") => o.obj("elt").obj("class") match {
         case ujson.Str("Call") =>
           //Map method
           val map = Term.Select(qual=translateExpr(o.obj("generators").arr.last),name=Term.Name("map"))
           val args=List(Term.Name(o.obj("elt").obj("func").obj("id").str))
           Term.Apply(fun=map,args=args)
-        case _ => throw new Exception("This list comprehension is not supported. Try using a for loop")
+        case ujson.Str("Subscript") =>
+          //Map on index
+          val map = Term.Select(qual=translateExpr(o.obj("generators").arr.last),name=Term.Name("map"))
+          val args=List(translateExpr(o.obj("elt").obj("value")).asInstanceOf[Term.Name])
+          Term.Apply(fun=map,args=args)
+        case _ => 
+          //Not map
+          translateExpr(o.obj("generators").arr.last)
       }
       case ujson.Str("comprehension") =>
         if (o.obj("ifs").arr.isEmpty){
@@ -112,13 +119,33 @@ object Main extends App {
         }else{
           //Filter
           val filter = Term.Select(qual=translateExpr(o.obj("iter")),name=Term.Name("filter"))
-          val args = o.obj("ifs").arr.map(translateExpr).toList
-          ??? //Term.Apply(fun=filter,args=List(andArguments(args)))
-        }*/
+          val args = o.obj("ifs").arr.map(item => filterCompare(item.asInstanceOf[ujson.Obj])).toList
+          concatFilterArguments(args,filter)
+          //Term.Apply(fun=filter,args=List(andArguments(args)))
+        }
 
       case _ => throw new Exception("Fail: Expr")
     }
     case _ => throw new Exception("Fail: Expr")
+  }
+
+  def filterCompare(o: ujson.Obj): Term = {
+    val left = o.obj("left").obj("class") match {
+      case ujson.Str("Subscript") => Term.Apply(fun = translateExpr(o.obj("left").obj("value")), args = List(Term.Placeholder()))
+      case _ => Term.Placeholder()
+    }
+    val op = translateOp(o.obj("ops").arr.last)
+    val right = translateExpr(o.obj("comparators").arr.last)
+    Term.ApplyInfix(lhs = left, op = op, targs = Nil, args = List(right))
+  }
+
+  def concatFilterArguments(args: List[Term],filter: Term.Select): Term = {
+      if (args.length == 1){
+        Term.Apply(fun=filter,args=args)
+      }else{
+        Term.Apply(fun=Term.Select(qual=concatFilterArguments(args.dropRight(1),filter),name=Term.Name("filter")),args=List(args.last))
+      }
+      
   }
 
   def translateOp(v: ujson.Value): Term.Name = v match {
@@ -186,67 +213,3 @@ object Main extends App {
     case _ => throw new Exception("Fail: TypeArgs")
   }
 }
-/*
-  def andArguments(args: List[Term]): Term = {
-      if (args.length == 1){
-        args(0)
-      }else{
-        val lhs = args(0)
-        Term.ApplyInfix(lhs=lhs,op=Term.Name("&&"),args=List(andArguments(args.drop(1))),targs=Nil)
-      }
-
-  }
-
-//   def parseAssignLHS(targets: ujson.Value): Term = {}
-//   def parseAssignRHS(value: ujson.Value): Term = {}
-
-//   def translateAssign(v: ujson.Value): Term = v match {
-//     case o: ujson.Obj => o.obj("class") match {
-//       case ujson.Str("Assign") => {
-//         val targets = o.obj("targets")
-//         val value = o.obj("value")
-//         if (targets.obj("elts").isNull){
-//           // left-hand side has only 1 variable
-//           if (value.obj("elts").isNull){
-//             // right-hand side has only 1 variable -- normal assignment
-//             val lhs = Pat.var()
-//             return Defn.Var(mods = Nil,decltpe=None,)
-//           }
-//           else{
-//             // right-hand side has multiple variables -- assigning a Tuple
-//           }
-//         }else{
-//           // left-hand side has multiple varible
-//           if (value.obj("elts").isNull){
-//             // right-hand side has only 1 variable -- invalid syntax
-//             throw new Exception("Invalid Python assignment -- cannot unpack non-iterable object")
-//           }
-//           else{
-//             //must have same number of variable -- treat each as different assignment
-//           }
-//         }
-//       }
-//       case _ => ???
-//     }
-//     case _ => ???
-//   }
-
-//   def translateBodyItem(v: ujson.Value): Term = v match {
-//     case a: ujson.Arr => translateBodyItem(a.arr.last)
-//     case o: ujson.Obj => o.obj("class") match {
-//       case ujson.Str("FunctionDef") =>  throw new Exception("Nested function definitions are not allowed")
-//       case ujson.Str("Expr") => translateExpr(o.obj("value"))
-//       case ujson.Str("Compare") => translateCompare(o)
-//       //case ujson.Str("Assign") => translateAssignment()
-//       //case ujson.Str("Call") => translateMethodCall(o)
-//       case _ =>
-//         println("translateBodyItemInner")
-//         println(o)
-//         ???
-//     }
-//     case _ =>
-//       println("translateBodyItemOuter")
-//       println(v)
-//       ???
-//   }
-}*/
