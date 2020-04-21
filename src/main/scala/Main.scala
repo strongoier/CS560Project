@@ -3,20 +3,20 @@ import scala.collection.mutable
 
 object Main extends App {
 
-  def translateSource(v: ujson.Value)(implicit nameSet: mutable.Set[String]): Source = v match {
+  def translateSource(v: ujson.Value)(implicit nameSet: mutable.Map[String,Option[Type]]): Source = v match {
     case a: ujson.Arr => translateSource(a.arr.last)
     case o: ujson.Obj => o.obj("class") match {
-      case ujson.Str("Module") => Source(stats = o.obj("body").arr.map(translateStat).toList)
+      case ujson.Str("Module") => Source(stats = o.obj("body").arr.map(item => translateStat(item)(nameSet = nameSet)).toList)
       case _ => throw new Exception("Fail: Source")
     }
     case _ => throw new Exception("Fail: Source")
   }
 
-  def translateStat(v: ujson.Value)(implicit nameSet: mutable.Set[String]): Stat = v match {
+  def translateStat(v: ujson.Value)(implicit nameSet: mutable.Map[String,Option[Type]]): Stat = v match {
     case o: ujson.Obj => o.obj("class") match {
-      case ujson.Str("Expr") => translateExpr(o.obj("value"))
+      case ujson.Str("Expr") => translateExpr(o.obj("value"))(nameSet=nameSet)
       case ujson.Str("If") =>
-        val cond = translateExpr(o.obj("test"))
+        val cond = translateExpr(o.obj("test"))(nameSet=nameSet)
         val thenp = Term.Block(stats = o.obj("body").arr.map(translateStat).toList)
         val elsep = if (o.obj("orelse").arr.nonEmpty) {
           Term.Block(stats = o.obj("orelse").arr.map(translateStat).toList)
@@ -25,38 +25,81 @@ object Main extends App {
         }
         Term.If(cond = cond, thenp = thenp, elsep = elsep)
       case ujson.Str("Return") =>
-        translateExpr(o.obj("value"))
+        translateExpr(o.obj("value"))(nameSet=nameSet)
       case ujson.Str("Assign") =>
-        val name = translateExpr(o.obj("targets").arr.head).asInstanceOf[Term.Name]
-        val value = translateExpr(o.obj("value"))
+        val name = translateExpr(o.obj("targets").arr.head)(nameSet=nameSet).asInstanceOf[Term.Name]
+        val value = translateExpr(o.obj("value"))(nameSet=nameSet)
         if (nameSet.contains(name.toString)) {
           Term.Assign(lhs = name, rhs = value)
         } else {
-          nameSet += name.toString
-          Defn.Var(mods = Nil, pats = List(Pat.Var(name = name)), decltpe = None, rhs = Some(value))
+          val decltpe = None
+          nameSet(name.toString) = decltpe
+          Defn.Var(mods = Nil, pats = List(Pat.Var(name = name)), decltpe = decltpe, rhs = Some(value))
         }
       case ujson.Str("For") =>
-        val pat = Pat.Var(name = translateExpr(o.obj("target")).asInstanceOf[Term.Name])
-        val enums = List(Enumerator.Generator(pat = pat, rhs = translateExpr(o.obj("iter"))))
+        val pat = Pat.Var(name = translateExpr(o.obj("target"))(nameSet=nameSet).asInstanceOf[Term.Name])
+        val enums = List(Enumerator.Generator(pat = pat, rhs = translateExpr(o.obj("iter"))(nameSet=nameSet)))
         val body = Term.Block(stats = o.obj("body").arr.map(translateStat).toList)
         Term.For(enums = enums, body = body)
       case ujson.Str("FunctionDef") =>
-        Defn.Def(decltpe = Some(translateType(o.obj("returns"))), mods = Nil, tparams = Nil,
-          name = Term.Name(o.obj("name").str),
-          paramss = translateArgs(o.obj("args")),
-          body = Term.Block(stats = o.obj("body").arr.map(translateStat).toList)
+        val decltpe = Some(translateType(o.obj("returns")))
+        val name = o.obj("name").str
+        nameSet(name) = decltpe
+        Defn.Def(decltpe = decltpe, mods = Nil, tparams = Nil,
+          name = Term.Name(name),
+          paramss = translateArgs(o.obj("args"))(nameSet = nameSet),
+          body = Term.Block(stats = o.obj("body").arr.map(item => translateStat(item)).toList)
         )
       case _ => throw new Exception("Fail: Stat")
     }
     case _ => throw new Exception("Fail: Stat")
   }
 
-  def translateExpr(v: ujson.Value): Term = v match {
+  def translateExpr(v: ujson.Value)(implicit nameSet: mutable.Map[String,Option[Type]]): Term = v match {
     case o: ujson.Obj => o.obj("class") match {
-      case ujson.Str("BinOp") =>
+      case ujson.Str("BinOp") => 
         val left = translateExpr(o.obj("left"))
-        val op = translateOp(o.obj("op"))
         val right = translateExpr(o.obj("right"))
+        val op = o.obj("op").obj("class") match{
+          case ujson.Str("Add") =>
+            val concatCases = List("List","ListComp")
+            if (concatCases.contains(o.obj("left").obj("class").str) || concatCases.contains(o.obj("right").obj("class").str)){
+              Term.Name("++")
+            }else if (o.obj("left").obj("class").str == "Call"){
+              val funcName = translateExpr(o.obj("left").obj("func")).asInstanceOf[Term.Name].value
+              if (getType(nameSet.getOrElse(funcName,None)) == "List"){
+                Term.Name("++")
+              }else{
+                translateOp(o.obj("op"))
+              }
+            }else if (o.obj("right").obj("class").str == "Call"){
+              val funcName = translateExpr(o.obj("right").obj("func")).asInstanceOf[Term.Name].value
+              if (getType(nameSet.getOrElse(funcName,None)) == "List"){
+                Term.Name("++")
+              }else{
+                translateOp(o.obj("op"))
+              }
+            }else if (o.obj("left").obj("class").str == "Name"){
+              val funcName = translateExpr(o.obj("left")).asInstanceOf[Term.Name].value
+              if (getType(nameSet.getOrElse(funcName,None)) == "List"){
+                Term.Name("++")
+              }else{
+                translateOp(o.obj("op"))
+              }
+            }else if (o.obj("right").obj("class").str == "Name"){
+              val funcName = translateExpr(o.obj("right")).asInstanceOf[Term.Name].value
+              if (getType(nameSet.getOrElse(funcName,None)) == "List"){
+                Term.Name("++")
+              }else{
+                translateOp(o.obj("op"))
+              }
+            }
+            else{
+              translateOp(o.obj("op"))
+            }
+          case _ => 
+            translateOp(o.obj("op"))
+        }
         Term.ApplyInfix(lhs = left, op = op, targs = Nil, args = List(right))
       case ujson.Str("BoolOp") =>
         val left = translateExpr(o.obj("values").arr.head)
@@ -128,14 +171,27 @@ object Main extends App {
     case _ => throw new Exception("Fail: Expr")
   }
 
-  def filterCompare(o: ujson.Obj): Term = {
+  def filterCompare(o: ujson.Obj)(implicit nameSet: mutable.Map[String,Option[Type]]): Term = {
     val left = o.obj("left").obj("class") match {
       case ujson.Str("Subscript") => Term.Apply(fun = translateExpr(o.obj("left").obj("value")), args = List(Term.Placeholder()))
-      case _ => Term.Placeholder()
+      case _ => getVariableOrPlaceholder(o.obj("left"))(nameSet = nameSet)
     }
     val op = translateOp(o.obj("ops").arr.last)
-    val right = translateExpr(o.obj("comparators").arr.last)
+    val comp = o.obj("comparators").arr.last
+    val right = comp.obj("class") match {
+        case ujson.Str("Subscript") => Term.Apply(fun = translateExpr(comp.obj("value")), args = List(Term.Placeholder()))
+        case _ => getVariableOrPlaceholder(comp)(nameSet = nameSet)
+      }
     Term.ApplyInfix(lhs = left, op = op, targs = Nil, args = List(right))
+  }
+
+  def getVariableOrPlaceholder(v: ujson.Value)(implicit nameSet: mutable.Map[String,Option[Type]]): Term = v match{
+    case o: ujson.Obj => o.obj("class") match {
+      case ujson.Str("Name") => 
+        if (nameSet.contains(o.obj("id").str)) Term.Name(o.obj("id").str) else Term.Placeholder()
+      case ujson.Str("Num") => translateExpr(o)
+      case _ => Term.Placeholder()
+    }
   }
 
   def concatFilterArguments(args: List[Term],filter: Term.Select): Term = {
@@ -169,20 +225,24 @@ object Main extends App {
     case _ => throw new Exception("Fail: Op")
   }
 
-  def translateArgs(v: ujson.Value): List[List[Term.Param]] = v match {
+  def translateArgs(v: ujson.Value)(implicit nameSet: mutable.Map[String,Option[Type]]): List[List[Term.Param]] = v match {
     case o: ujson.Obj => o.obj("class") match {
       case ujson.Str("arguments") =>
         val args = o.obj("args").arr
-        List[List[Term.Param]](args.map(translateArg).toList)
+        List[List[Term.Param]](args.map(item => translateArg(item)(nameSet=nameSet)).toList)
       case _ => throw new Exception("Fail: Args")
     }
     case _ => throw new Exception("Fail: Args")
   }
 
-  def translateArg(v: ujson.Value): Term.Param = v match {
+  def translateArg(v: ujson.Value)(implicit nameSet: mutable.Map[String,Option[Type]]): Term.Param = v match {
     case o: ujson.Obj => o.obj("class") match {
-      case ujson.Str("arg") => Term.Param(name = Term.Name(o.obj("arg").str),
-        decltpe = Some(translateType(o.obj("annotation"))),
+      case ujson.Str("arg") =>
+        val name = o.obj("arg").str
+        val decltpe = Some(translateType(o.obj("annotation")))
+        nameSet(name) = decltpe
+        Term.Param(name = Term.Name(name),
+        decltpe = decltpe,
         mods = Nil, default = None)
       case _ => throw new Exception("Fail: Arg")
     }
@@ -210,5 +270,14 @@ object Main extends App {
       case _ => throw new Exception("Fail: TypeArgs")
     }
     case _ => throw new Exception("Fail: TypeArgs")
+  }
+
+  def getType(v: Option[Type]): String = v match {
+    case None => ""
+    case Some(o) => o match {
+      case n: Type.Name => n.value
+      case a: Type.Apply => getType(Some(a.tpe))
+      case _ => throw new Exception("Fail: Unsupported Type conversion")
+    }
   }
 }

@@ -1,5 +1,6 @@
 import org.scalatest.FunSuite
 
+import scala.meta.Type
 import scala.collection.mutable
 import scala.io.Source
 import scala.sys.process._
@@ -14,12 +15,13 @@ class MainTest extends FunSuite {
     val _ = Seq("python", "ast_to_json.py", "-f", s"test/$id.py").!!
     Using(Source.fromFile(s"test/$id.json"))(_.mkString) match {
       case Success(jsonString) =>
-        val code = Main.translateSource(ujson.read(jsonString))(mutable.Set[String]()).toString
+        val code = Main.translateSource(ujson.read(jsonString))(mutable.Map[String,Option[Type]]()).toString
         assert(code === expectedCode)
         assert(toolbox.compile(toolbox.parse(code))() === expectedOutput)
       case Failure(_) => fail("failed to open json file")
     }
   }
+
 
   test("1") {
     testCodeAndOutput("1", "1 * (2 + 3) / 4 - 5 % 6", -4)
@@ -65,6 +67,12 @@ class MainTest extends FunSuite {
                             |var tot5 = b.filter(c(_) > 0).filter(_ > 0).map(a)
                             |tot.sum + tot2.sum + tot3.sum + tot4.sum + tot5.sum""".stripMargin,51)
   }
+  test("6"){
+    testCodeAndOutput("6","""def combine(a: List[Int], b: List[Int]): List[Int] = {
+                            |  a ++ b
+                            |}
+                            |combine(List(1, 2, 3), List(4, 5, 6)) == List(1, 2, 3, 4, 5, 6)""".stripMargin,true)
+  }
   test("binary_search"){
     testCodeAndOutput("binary_search","""def binary_search(a: List[Int], low: Int, high: Int, value: Int): Int = {
                                         |  if (low < high) {
@@ -84,5 +92,17 @@ class MainTest extends FunSuite {
                                         |}
                                         |binary_search(List(5, 10, 20, 100, 200), 0, 4, 20)""".stripMargin
                                         ,2)
+  }
+
+  test("quicksort"){
+    testCodeAndOutput("quicksort","""def quicksort(a: List[Int]): List[Int] = {
+                                    |  if (a.length < 2) {
+                                    |    a
+                                    |  } else {
+                                    |    var pivot = a(a.length / 2)
+                                    |    quicksort(a.filter(pivot > (_))) ++ a.filter(pivot == (_)) ++ quicksort(a.filter(pivot < (_)))
+                                    |  }
+                                    |}
+                                    |quicksort(List(10, 6, 8, 1, 0, 9)) == List(0, 1, 6, 8, 9, 10)""".stripMargin,true)
   }
 }
