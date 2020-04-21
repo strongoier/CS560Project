@@ -121,7 +121,6 @@ object Main extends App {
           val filter = Term.Select(qual=translateExpr(o.obj("iter")),name=Term.Name("filter"))
           val args = o.obj("ifs").arr.map(item => filterCompare(item.asInstanceOf[ujson.Obj])).toList
           concatFilterArguments(args,filter)
-          //Term.Apply(fun=filter,args=List(andArguments(args)))
         }
 
       case _ => throw new Exception("Fail: Expr")

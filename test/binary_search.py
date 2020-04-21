@@ -9,3 +9,6 @@ def binary_search(a: List[int], low: int, high: int, value: int) -> int:
             return mid
     else:
         return -1
+
+
+binary_search([5, 10, 20, 100, 200], 0, 4, 20)

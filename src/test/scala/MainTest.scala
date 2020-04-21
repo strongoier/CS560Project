@@ -65,4 +65,24 @@ class MainTest extends FunSuite {
                             |var tot5 = b.filter(c(_) > 0).filter(_ > 0).map(a)
                             |tot.sum + tot2.sum + tot3.sum + tot4.sum + tot5.sum""".stripMargin,51)
   }
+  test("binary_search"){
+    testCodeAndOutput("binary_search","""def binary_search(a: List[Int], low: Int, high: Int, value: Int): Int = {
+                                        |  if (low < high) {
+                                        |    var mid = (low + high) / 2
+                                        |    if (a(mid) < value) {
+                                        |      binary_search(a, mid + 1, high, value)
+                                        |    } else {
+                                        |      if (value < a(mid)) {
+                                        |        binary_search(a, low, mid, value)
+                                        |      } else {
+                                        |        mid
+                                        |      }
+                                        |    }
+                                        |  } else {
+                                        |    -1
+                                        |  }
+                                        |}
+                                        |binary_search(List(5, 10, 20, 100, 200), 0, 4, 20)""".stripMargin
+                                        ,2)
+  }
 }
