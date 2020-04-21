@@ -18,8 +18,8 @@ object Main extends App {
       ???
   }
 
-  val _ = Seq("python", "ast_to_json.py", "-f", "test/2.py", "test/2.json").!!
-  val result = Using(Source.fromFile("test/2.json"))(_.mkString) match {
+  val _ = Seq("python", "ast_to_json.py", "-f", "test/binary_search.py", "test/binary_search.json").!!
+  val result = Using(Source.fromFile("test/binary_search.json"))(_.mkString) match {
     case Success(jsonString) => translateSource(ujson.read(jsonString)).toString
     case Failure(_) => "failed to open json file"
   }

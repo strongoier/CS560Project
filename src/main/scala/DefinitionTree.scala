@@ -101,6 +101,7 @@ class DefinitionTree(var jsonTree: ujson.Value){
       case ujson.Str("And") => Term.Name("&&")
       case ujson.Str("Or") => Term.Name("||")
       case ujson.Str("Not") => Term.Name("!")
+      case ujson.Str("USub") => Term.Name("-")
       case _ => 
         println("translateOp")
         ???
