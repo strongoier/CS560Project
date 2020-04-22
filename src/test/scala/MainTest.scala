@@ -65,7 +65,7 @@ class MainTest extends FunSuite {
                             |var tot3 = b.filter(_ > 0)
                             |var tot4 = b.map(a)
                             |var tot5 = b.filter(c(_) > 0).filter(_ > 0).map(a)
-                            |tot.sum + tot2.sum + tot3.sum + tot4.sum + tot5.sum""".stripMargin,51)
+                            |(tot ++ tot2 ++ tot3 ++ tot4 ++ tot5).sum""".stripMargin,51)
   }
   test("6"){
     testCodeAndOutput("6","""def combine(a: List[Int], b: List[Int]): List[Int] = {

@@ -6,4 +6,4 @@ tot2 = [a[j] for j in b if c[j] > 0]
 tot3 = [j for j in b if j > 0]
 tot4 = [a[j] for j in b]
 tot5 = [a[j] for j in b if c[j] > 0 if j > 0]
-sum(tot) + sum(tot2) + sum(tot3) + sum(tot4) + sum(tot5)
+sum(tot + tot2 + tot3 + tot4 + tot5)
