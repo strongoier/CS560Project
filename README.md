@@ -52,5 +52,5 @@ Currently, our project supports the following features of Python:
 
 Notice:
 
-- Parameters of a function declaration has to be explicitly typed
-- Variables cannot be assigned to values with different types
+- Parameters of a function declaration have to be explicitly typed
+- A single variable cannot be assigned to values with different types
