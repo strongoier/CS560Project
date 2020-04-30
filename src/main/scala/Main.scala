@@ -10,7 +10,10 @@ object Main extends App {
 
   //https://stackoverflow.com/questions/2315912/best-way-to-parse-command-line-parameters
     val usage = """
-    Usage: sbt "run [--input-file | -i]   inputFile  [--output-file | -o outputFile]"
+    Usage:
+      sbt "run <inputFile>.py"
+      sbt "run (--input-file | -i) <inputFile>.py (--output-file | -o) <outputFile>"
+      Note that in the first usage, the output filename will be "<inputFile>.scala".
     """
     val arglist = args.toList
     type OptionMap = Map[Symbol, Any]
