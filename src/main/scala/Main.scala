@@ -1,7 +1,60 @@
 import scala.meta._
 import scala.collection.mutable
+import java.io.{File => ioFile} 
+import java.io.PrintWriter
+import scala.io.{Source => ioSource}
+import scala.sys.process._
+import scala.util._
 
 object Main extends App {
+
+  //https://stackoverflow.com/questions/2315912/best-way-to-parse-command-line-parameters
+    val usage = """
+    Usage: sbt "run [--input-file | -i]   inputFile  [--output-file | -o outputFile]"
+    """
+    val arglist = args.toList
+    type OptionMap = Map[Symbol, Any]
+
+    def nextOption(map : OptionMap, list: List[String]) : OptionMap = {
+      def isSwitch(s : String) = (s(0) == '-')
+      list match {
+        case Nil => map
+        case "--input-file" :: value :: tail =>
+                               nextOption(map ++ Map('inputFile -> value), tail)
+        case "-i" :: value :: tail =>
+                               nextOption(map ++ Map('inputFile -> value), tail)
+        case "--output-file" :: value :: tail =>
+                               nextOption(map ++ Map('outputFile -> value), tail)
+        case "-o" :: value :: tail =>
+                               nextOption(map ++ Map('outputFile -> value), tail)
+        case string :: Nil =>  nextOption(map ++ Map('inputFile -> string), list.tail)
+        case option :: tail => println("Unknown option "+option) 
+                               sys.exit(1) 
+      }
+    }
+    val options = nextOption(Map(),arglist)
+    if (options.contains('inputFile)){
+      val inFile: String = options('inputFile).asInstanceOf[String]
+      assert(inFile.endsWith(".py"), "Input file must be a Python file")
+      val outFile: String = if (options.contains('outputFile)) options('outputFile).asInstanceOf[String] else inFile.replace(".py",".scala").asInstanceOf[String]
+      val _ = Seq("python", "ast_to_json.py", "-f", inFile).!!
+      Using(ioSource.fromFile(inFile.replace(".py",".json")))(_.mkString) match {
+        case Success(jsonString) =>
+          val code = Main.translateSource(ujson.read(jsonString))(mutable.Map[String,Option[Type]]()).toString
+          new ioFile(inFile.replace(".py",".json")).delete()
+          val file_Object = new ioFile(outFile)
+          val print_Writer = new PrintWriter(file_Object)
+          print_Writer.write(code) 
+          print_Writer.close()
+          
+        case Failure(_) => throw new Exception("failed to open json file")
+      }
+    }else{
+      println(usage)
+      println("Must provide Python input file")
+      sys.exit(1)
+    }
+    
 
   def translateSource(v: ujson.Value)(implicit nameSet: mutable.Map[String,Option[Type]]): Source = v match {
     case a: ujson.Arr => translateSource(a.arr.last)

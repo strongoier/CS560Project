@@ -1,5 +1,6 @@
 import org.scalatest.FunSuite
 
+import java.io.File
 import scala.meta.Type
 import scala.collection.mutable
 import scala.io.Source
@@ -16,6 +17,7 @@ class MainTest extends FunSuite {
     Using(Source.fromFile(s"test/$id.json"))(_.mkString) match {
       case Success(jsonString) =>
         val code = Main.translateSource(ujson.read(jsonString))(mutable.Map[String,Option[Type]]()).toString
+        new File(s"test/$id.json").delete()
         assert(code === expectedCode)
         assert(toolbox.compile(toolbox.parse(code))() === expectedOutput)
       case Failure(_) => fail("failed to open json file")
